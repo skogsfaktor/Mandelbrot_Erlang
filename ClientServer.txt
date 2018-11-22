@@ -1,0 +1,6 @@
+Client:
+erl.exe -name brot@"local ip" -setcookie mandel
+client:start({"registered server process", "registered serverl erl process name"@"server ip"}). 
+
+Server:
+server:start(Width, Height, Depth, K, X, X1, "image file name"). 

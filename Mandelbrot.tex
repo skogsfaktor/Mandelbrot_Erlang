@@ -1,0 +1,93 @@
+%% En enkel mall för att skapa en labb-raport.
+\documentclass[a4paper, 11pt]{article}
+\usepackage[utf8]{inputenc} 
+\usepackage[swedish]{babel}
+\usepackage{graphicx}
+
+\title{Mandelbrot}
+\author{Sadok Habibi Dalin}
+\date{2015-02-20} 
+
+\begin{document}
+
+\maketitle
+\section{Uppgiften}
+Uppgiften går ut på att visualisera mandelbrotmängden genom att implementera en bildgenerator i Erlang. 
+\\\\Uppgiften kan delas upp i mindre deluppgifter: 
+\begin{itemize}
+ \item Definiera en modul som kan utföra operationer med komplexa tal d.v.s. skapa, addera och kvadrera komplexa tal. Modulen ska också innehålla en funktion som returnerar absolutbeloppet av ett givet komplext tal. 
+ \item Definiera en funktion som givet en pixel beräknar ett komplext tal. 
+ \item Definiera en funktion som beräknar djupet i mandelbrotmängden givet ett komplext tal och maximala antalet iterationer. 
+ \item Definiera en funktion som givet ett djup räknar ut färgen på en pixel. 
+ \item Definiera en funktion som beräknar färgen på alla pixlar i ett rektangulärt plan. 
+ \item Använd den givna ppm.erl modulen för att skriva en genererad bild till en läsbar fil. 
+ \item Beskriv eventuella optimeringar som kan göras för att sänka tidskomplexiteten. 
+\end{itemize} 
+\section{Ansats}
+Lösningar till deluppgifterna givna i uppgiftssektionen: 
+\\\textbf{Definiera en modul som kan utföra operationer med komplexa tal, cmplx.erl:}
+\\Funktioner som är definierade i cmplx.erl:
+\begin{itemize}
+ \item new(Real, Im). Returnerar ett imaginärt tal på formen \{Real, Im\}. 
+ \item add(C1, C2). Returnerar C1+C2 = \{Real1 + Real2, Im1 + Im2\}. 
+ \item sqr(C). Returnerar \begin{math} C^2 \end{math} på formen \{Real*Real - Im*Im, 2 - Real*Im\}. 
+ \item abs(C). Returnerar \begin{math} |C| \end{math} d.v.s. \begin{math} \sqrt{Real*Real - Im*Im} \end{math}. 
+\end{itemize}
+\textbf{Definiera en funktion som översätter kordinaterna för en given pixel till ett komplext tal, Trans(Width, Height):}
+\\Returnerar ett komplext tal på formen \{X+K*(Width-1), Y-K*(Height-1)\} där X är reella kordinatkomposanten för vänstra sidan av bilden och Y är den imaginära kordinatkomposanten för höjden på bilden. 
+\\\\\textbf{Definiera en funktion som givet ett komplext tal och maximala antalet iterationer beräknar djupet i mandelbrotmängden, mandelbrot(C, Iterations):}
+\\mandelbrot() anropar en hjälpfunktion test(I, Z0, C, Iterations) där I är antalet iterationer hittils d.v.s. 0 och Z0 är en iterationsvariabel som representerar \begin{math} z_{n+1} = z_{n} + c \end{math} d.v.s. 0. 
+\\\\test() returnerar I om \begin{math} |Z0| > 2 \end{math}. Annars returneras test(I+1, \begin{math} Z0^2 + C \end{math}, C, Iterations). Om I == Iterations returneras 0. För vissa punkter så blir \begin{math} |Z0| \end{math} aldrig större än 2 oavsett antal iterationer. För att undvika att programmet försöker beräkna djupet för dessa punkter i all oändlighet så itereras formeln \begin{math} z_{n+1} = z_{n} + c \end{math} endast igenom Iterations gånger.
+\\\\\textbf{Definiera en funktion som givet djupet för en punkt och maximala möjliga djupet för en punkt beräknar färgen på en pixel, convert(Depth, MaxDepth):}
+\\5 olika färgskalor används för att beräkna färgen på pixlar med olika djup. Färgskalorna genereras m.h.a. decimalerna till \begin{math} A=\frac{4*Depth}{MaxDepth} \end{math}. Beroende på vad A avrundas till för heltal returneras olika färger på formen \{R, G, B\}. Den avrundade variabeln. Y = 255*(A-trunc(A)) används i returtuppeln för att generera färgtoner baserat på en given pixels djup. 
+\\\\\textbf{Definiera en funktion som beräknar färgen på alla pixlar i ett rektangulärt plan, rows(Width, Height, Trans, Depth, Image):}
+\\Width och Height är den genererade bildens dimensioner. Depth är maximala möjliga djupet som en punkt kan ha d.v.s. maximala antalet gånger formeln \begin{math} z_{n+1} = z_{n} + c \end{math} kan itereras igenom för en given punkt. Trans är en funktion som översätter en pixels kordinater till ett komplext tal. 
+\\\\rows() anropar en funktion row(Width, IterHeight, Trans, MaxDepth, Row, IterWidth) Height antal gånger d.v.s. 1 gång för varje rad i bilden som ska genereras. row() returnerar en behandlad rad på formen [\{R, G, B\}, \{R, G, B\}, ...] d.v.s. en lista med Width antal tuppler. De behandlade raderna adderas till en resultatlista som returneras efter att rows() har itererat genom alla rader. 
+\\\\row(Width, IterHeight, Trans, MaxDepth, Row, IterWidth) översätter en rad med pixlar till en rad med färger m.h.a. 3 funktioner: 
+\begin{itemize}
+ \item Trans(Width, Height): (IterWidth, IterHeight) \begin{math} \rightarrow \end{math} C. 
+ \item mandelbrot(C, Iterations): (C, MaxDepth) \begin{math} \rightarrow \end{math} Depth. 
+ \item convert(Depth, MaxDepth): (Depth, MaxDepth) \begin{math} \rightarrow \end{math} \{R, G, B\}.  
+\end{itemize}
+\{R, G, B\} adderas sedan till en resultatlista som returneras efter att row() har itererat genom alla pixlar i raden. 
+\\\\\textbf{Optimeringar som kan göras för att sänka tidskomplexiteten:}
+\\Genom att utnyttja flera processorkärnor kan prestandan förbättras avsevärt. Istället för att behandla alla rader i en bild på 1 process så ''spawnar'' jag en process för varje rad. Efter att alla processer som behandlar rader är startade anropas funktionen rowConcat(Height, Image). rowConcat() väntar i ett receive-uttryck på behandlade rader på formen \{RowOrder, Row\} där RowOrder är radens IterHeight. När en rad tas emot adderas raden till en resultatlista NewImage som sorteras m.h.a. insertionsort i stigande RowOrder ordning. Sedan returneras rowConcat(Height-1, NewImage). När Height == 0 returneras en färdig bild.
+\\\\Alla operationer som involverar konkatinering av listor kan optimeras. Genom att addera nya element från vänster istället för höger så kan tidskomplexiteten sänkas från O(\begin{math} N^2 \end{math}) till O(1). 
+\section{Utvärdering}
+Nedan är en bild genererad med inställningarna (Width, Height, X, Y, X1, Depth) = (6000, 3000, -0.1362,0.8408,-0.132, 2048):
+\\\includegraphics[width=\textwidth]{C:/Users/Skogsfaktor/Desktop/mongo6000compressed.png}
+\\\\Nedan är givet tiden det tar att generera en bild när 1 process respektive Height processer behandlar raderna i bilden:
+\\(Width, Height, X, Y, X1, Depth) = (960, 540, -2.6, 1.2, 1.6, 128)
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|}  
+\hline
+Metod & Tid\\
+\hline
+1 process & 7.2s\\
+\hline
+Height processer & 4.6s\\
+\hline
+\end{tabular}
+\caption{Tiden det tar att generera en bild.}
+\label{tab:results}
+\end{table}
+\\(Width, Height, X, Y, X1, Depth) = (1920, 1080, -2.6, 1.2, 1.6, 512)
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|r|r|}  
+\hline
+Metod & Tid\\
+\hline
+1 process & 88s\\
+\hline
+Height processer & 54s\\
+\hline
+\end{tabular}
+\caption{Tiden det tar att generera en bild.}
+\label{tab:results}
+\end{table}
+\\Att använda Height processer för att behandla raderna minskar körtiden avsevärt. Genom att använda mergesort och sortera 1 gång  istället för att använda insertion sort och sortera Height gånger så kan körtiden eventuellt minskas ännu mer. 
+\section{Sammanfattning}
+Det största problemet som uppstod under utvecklingen av programmet var ett tidsproblem. P.g.a. dåligt optimerad kod så tog det lång tid att generera bilder med hög upplösning och högt djup. Ett minnesproblem uppstod också när bilder med hög upplösning skulle genereras eftersom RAM-minnet tog slut och programmet kraschade. 
+\end{document}
